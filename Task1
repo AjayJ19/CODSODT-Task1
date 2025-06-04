@@ -1,0 +1,52 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.preprocessing import MultiLabelBinarizer
+
+path = "/root/.cache/kagglehub/datasets/hijest/genre-classification-dataset-imdb/versions/1/Genre Classification Dataset/train_data.txt"
+
+lines = []
+with open(path, "r", encoding="utf-8") as f:
+    for line in f:
+        parts = line.strip().split(" ::: ")
+        if len(parts) == 4:
+            lines.append(parts)
+
+ids = [i[0] for i in lines]
+titles = [i[1] for i in lines]
+genres = [ [g.strip().lower() for g in i[2].split(",")] for i in lines]
+plots = [i[3] for i in lines]
+
+df = pd.DataFrame()
+df['id'] = ids
+df['title'] = titles
+df['genre'] = genres
+df['plot'] = plots
+
+x = df['plot']
+y = df['genre']
+
+mlb = MultiLabelBinarizer()
+y_bin = mlb.fit_transform(y)
+
+x_train, x_test, y_train, y_test = train_test_split(x, y_bin, test_size=0.2)
+
+vec = TfidfVectorizer(stop_words='english', max_features=10000)
+x_train_vec = vec.fit_transform(x_train)
+x_test_vec = vec.transform(x_test)
+
+model = OneVsRestClassifier(LogisticRegression(max_iter=1000))
+model.fit(x_train_vec, y_train)
+
+y_pred = model.predict(x_test_vec)
+
+print("Accuracy:", (y_pred == y_test).mean())
+
+def predict_genres(text):
+    v = vec.transform([text])
+    p = model.predict(v)
+    return mlb.inverse_transform(p)[0]
+
+print(predict_genres("When a black hole appears near Earth, scientists must race against time to prevent it from consuming the planet."))
